@@ -68,16 +68,26 @@ def run_training_loop(params):
     # Maximum length for episodes
     params['ep_len'] = params['ep_len'] or env.spec.max_episode_steps
     MAX_VIDEO_LEN = params['ep_len']
-
+    
+    # Note that "continuous" is used also for pixels, discrete is really categorical
     assert isinstance(env.action_space, gym.spaces.Box), "Environment must be continuous"
+
     # Observation and action sizes
+    # This make sense only thanks to the assert above
+    # E.g. HalfCheetah-v4 has 17 observations (real value vector of shape (17,)) and 6 actions (real value vector of shape (6,))
     ob_dim = env.observation_space.shape[0]
     ac_dim = env.action_space.shape[0]
 
     # simulation timestep, will be used for video saving
-    if 'model' in dir(env):
+    if 'model' in dir(env):  # Mujoco style envs like HalfCheetah, Ant, etc.
+        # model contains the physics simulator parameters
+        # opt.timestep is the duration of one physics step in seconds
+        # 1 / opt.timestep is the physics simulation frequency (Hz)
+        # This equals the video fps only if one frame is rendered per simulation step
         fps = 1/env.model.opt.timestep
-    else:
+    else:  # Other Gym envs like CartPole, Atari, etc.
+        # For non-MuJoCo envs, the intended render rate is stored in metadata
+        # metadata['render_fps'] is the target video frame rate (Hz)
         fps = env.env.metadata['render_fps']
 
     #############
@@ -156,8 +166,9 @@ def run_training_loop(params):
           # HINT1: how much data = params['train_batch_size']
           # HINT2: use np.random.permutation to sample random indices
           # HINT3: return corresponding data points from each array (i.e., not different indices from each array)
-          # for imitation learning, we only need observations and actions.  
-          ob_batch, ac_batch = TODO
+          # for imitation learning, we only need observations and actions.
+          batch_idxs = np.random.permutation(len(replay_buffer))[:params['train_batch_size']]
+          ob_batch, ac_batch = replay_buffer.obs[batch_idxs], replay_buffer.acs[batch_idxs]
 
           # use the sampled data to train an agent
           train_log = actor.update(ob_batch, ac_batch)
